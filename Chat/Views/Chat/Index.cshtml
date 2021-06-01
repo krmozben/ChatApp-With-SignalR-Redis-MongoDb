@@ -1,0 +1,125 @@
+﻿<html>
+<head>
+    <title></title>
+
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-+0n0xVW2eSR5OomGNYDnhzAbDsOXxcvSN1TPprVMTNDbiYZCxYbOOl7+AMvyTG2x" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.1/dist/js/bootstrap.bundle.min.js" integrity="sha384-gtEjrD/SeCtmISkJkNUaaKMoLD0//ElJ19smozuHV6z3Iehds+3Ulb9Bn9Plx0x4" crossorigin="anonymous"></script>
+    <script src="~/lib/microsoft-signalr/signalr.min.js"></script>
+    <script src="~/lib/jquery/jquery.min.js"></script>
+    <script>
+        $(document).ready(() => {
+
+            var varUserName;
+            var varChannel;
+
+            var connection = new signalR.HubConnectionBuilder()
+                .withUrl("https://localhost:44375/chathub")
+                .build();
+
+            connection.start()
+                .then(() => console.log("Bağlantı başarıyla gerçekleştirildi."))
+                .catch(error => console.log("Bağlantı sağlanırken beklenmeyen bir hatayla karşılaşıldı."));
+
+            connection.on("ReceiveMessage", chatModel => {
+                $("#messages").append(`${chatModel.userName} : ${chatModel.message}<br>`);
+            });
+
+            $("#sendUserName").click(() => {
+                varUserName = $("#userName").val();
+                if (varUserName != null && varUserName != "") {
+
+                    $("#UserNameArea").hide(200);
+                    $("#MessageArea").show(200);
+                    $("#titleUserName").html(varUserName);
+
+                }
+            });
+
+            $("#sendMessage").click(() => {
+                var message = $("#messageBox").val();
+                if (message != null && varUserName != null && varChannel != null && message != "" &&varUserName != "" && varChannel != "") {
+                    let ChatModel = {
+                        UserName: varUserName,
+                        Message: message,
+                        Channel: varChannel
+                    };
+                    console.log(ChatModel);
+                    connection.invoke("SendMessageAsync", ChatModel)
+                        .catch(error => console.log("Mesaj gönderilirken hata alınmıştır."));
+                }
+                $("#messageBox").val("");
+            });
+
+            $.btnJoinChannel = function (channelId) {
+
+                varChannel = channelId;
+
+                connection.invoke("SetGroupAsync", varChannel);
+
+                $("#channelTitle").html(channelId);
+                $("#messageBox").removeAttr("disabled");
+                $("#sendMessage").removeAttr("disabled");
+
+                $("#messages").html("");
+
+                $.ajaxSetup({ async: false });  
+                $.ajax({
+                    type: "POST",
+                    url: "Chat/GetMessagesByChannel",
+                    data: { channel: varChannel },
+                    success: function myfunction(data) {
+                        $.each(data, function (index) {
+                            $("#messages").append(`${data[index].userName} : ${data[index].message}<br>`);
+                        });
+                    },
+                    dataType: "json"
+                });
+            }
+
+        });
+    </script>
+</head>
+<body>
+    <div class="container">
+        <br />
+        <div class="row" id="UserNameArea">
+            <div class="col-md-4">
+                <div class="mb-3">
+                    <label class="form-label">Kullanıcı Adı</label>
+                    <input type="text" class="form-control" id="userName" placeholder="Lütfen bir kullanıcı adı giriniz..">
+                </div>
+                <button type="button" id="sendUserName" class="btn btn-primary">Giriş</button>
+            </div>
+        </div>
+        <br /><br /><br />
+        <div class="row" id="MessageArea" style="display:none;">
+            <div class="col-md-4">
+                <div class="form-group">
+                    <h5><span id="channelTitle"></span></h5><br />
+                    <ul id="messages" style="margin:0px;padding:0px;"></ul><br />
+                    <div class="mb-3">
+                        <input type="text" id="messageBox" placeholder="Mesaj.." class="form-control" disabled>
+                    </div>
+                    <button class="btn btn-sm btn-primary" id="sendMessage" disabled><span id="titleUserName"></span> : Gönder</button>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <h4>Kanal Listesi</h4>
+                <br />
+                <ul class="list-group">
+                    @foreach (var item in (List<string>)ViewBag.Channels)
+                    {
+                        <li class="list-group-item d-flex justify-content-between align-items-center" id="@item.Replace(" ","")">
+                            @item
+                            <span class=""><button class="btn btn-sm btn-outline-danger" onclick="$.btnJoinChannel('@item')">Katıl</button></span>
+                        </li>
+                    }
+                </ul>
+            </div>
+        </div>
+    </div>
+
+</body>
+
+</html>
